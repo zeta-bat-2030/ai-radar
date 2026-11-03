@@ -46,16 +46,26 @@ P=[('baidu','百度热搜','综合',baidu,'#2f6bff'),('toutiao','今日头条','
    ('geekpark','极客公园','科技',lambda:rss('https://www.geekpark.net/rss'),'#1aa3ff'),('ifanr','爱范儿','科技',lambda:rss('https://www.ifanr.com/feed'),'#e21f26'),('sspai','少数派','科技',lambda:rss('https://sspai.com/feed'),'#da282a'),
    ('juejin','掘金·人工智能','开发者',juejin,'#1e80ff'),('csdn','CSDN热榜','开发者',csdn,'#fc5531'),('oschina','开源中国','开发者',lambda:rss('https://www.oschina.net/news/rss'),'#2fb35a'),('v2ex','V2EX','开发者',v2ex,'#999999')]
 out=[];now=int(time.time()*1000)
+try:OLD={p['id']:p for p in json.load(open('data/cn.json'))['platforms'] if p.get('ok')}
+except Exception:OLD={}
 for pid,name,cat,f,color in P:
     try:
+      for attempt in range(3):
+       try:
         seen=set();items=[]
         for x in f():
             x['title']=(x['title'] or '').strip()
             if not x['title'] or x['title'] in seen:continue
             seen.add(x['title']);x['ai']=bool(AI.search(x['title']));items.append(x)
         items=items[:60];out.append(dict(id=pid,name=name,cat=cat,color=color,ok=True,items=items,updated=now))
-        print(f'{name}: {len(items)} 条, AI {sum(i["ai"] for i in items)}')
+        print(f'{name}: {len(items)} 条, AI {sum(i["ai"] for i in items)}');break
+       except Exception:
+        if attempt==2:raise
+        time.sleep(3)
     except Exception as e:
+      if pid in OLD:
+        o=OLD[pid];o['stale']=True;o['err']=str(e)[:100];out.append(o);print(f'{name}: ERR {e}（沿用上次数据）')
+      else:
         out.append(dict(id=pid,name=name,cat=cat,color=color,ok=False,err=str(e)[:100],items=[],updated=now));print(f'{name}: ERR {e}')
 os.makedirs('data',exist_ok=True)
 json.dump(dict(updated=now,platforms=out),open('data/cn.json','w'),ensure_ascii=False)
