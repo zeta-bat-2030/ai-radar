@@ -1,0 +1,28 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI//RADAR 全球AI情报终端</title><link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2.1.0/dist/echarts-wordcloud.min.js"></script></head><body>
+<canvas id="rain"></canvas><div class="crt"></div>
+<div id="boot"><pre id="bootTxt"></pre></div>
+<header class="panel"><div class="logo"><span class="glitch" data-t="AI//RADAR">AI//RADAR</span><small>全球AI情报终端 · <span id="clock"></span></small></div>
+<div class="stats"><div><b id="sTotal">0</b><span>情报总数</span></div><div><b id="sCn">0</b><span>国内情报</span></div><div><b id="sHour">0</b><span>近1小时</span></div><div><b id="sAlert" class="r">0</b><span>预警</span></div><div><b id="countdown">--</b><span>秒后同步</span></div>
+<button id="refresh">[ 立即同步 ]</button></div></header>
+<div class="ticker panel"><span class="tlabel">LIVE ▶</span><div class="tw"><div id="ticker"></div></div></div>
+<nav id="tabs"></nav>
+<main>
+<section class="panel feed"><h2>&gt; 实时情报流 <span id="srcStatus"></span></h2>
+<div class="filters"><input id="search" placeholder="$ grep 关键词…"><select id="srcFilter"><option value="">全部来源</option></select>
+<select id="sort"><option value="time">按时间</option><option value="heat">按热度</option></select></div><ul id="list"></ul></section>
+<section class="panel radarP"><h2>&gt; 雷达扫描</h2><canvas id="radar"></canvas></section>
+<section class="panel alerts"><h2>&gt; 预警中心 <span class="blink">●</span></h2>
+<div class="kw"><input id="kwInput" placeholder="+ 添加预警关键词，回车"><div id="kwTags"></div></div>
+<div class="toggles"><label><input type="checkbox" id="notifyT"> 浏览器通知</label><label><input type="checkbox" id="soundT"> 声音</label></div>
+<div class="legend"><i class="red"></i>红 激增/极热 <i class="orange"></i>橙 命中+高热 <i class="yellow"></i>黄 命中</div><ul id="alertList"></ul></section>
+<section class="panel trend"><h2>&gt; 话题趋势 / 24H</h2><div id="cTrend" class="chart"></div></section>
+<section class="panel cloud"><h2>&gt; 关键词热度云</h2><div id="cCloud" class="chart"></div></section>
+<section class="panel co"><h2>&gt; 公司提及排行</h2><div id="cCo" class="chart"></div></section>
+<section class="panel src"><h2>&gt; 来源分布</h2><div id="cSrc" class="chart"></div></section>
+<section class="panel cat"><h2>&gt; 分类统计</h2><div id="cCat" class="chart"></div></section>
+<section class="panel term"><h2>&gt; 系统日志 tail -f</h2><pre id="log"></pre></section>
+</main><footer>数据源：Hacker News · GitHub · DEV（浏览器实时） + IT之家 · cnBeta · 极客公园 · 开源中国 · 爱范儿 · 少数派 · V2EX（定时抓取 data/cn.json，更新于 <span id="cnUpd">-</span>） · 最后同步 <span id="updated">-</span></footer>
+<script src="js/app.js"></script></body></html>
