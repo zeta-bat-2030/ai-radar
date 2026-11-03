@@ -1,28 +1,61 @@
 #!/usr/bin/env python3
-"""抓取中文 AI 资讯源（无 CORS 的源由服务端/Actions 抓取），输出 data/cn.json"""
-import json,re,time,urllib.request,email.utils,xml.etree.ElementTree as ET,os
-UA={'User-Agent':'Mozilla/5.0 ai-radar'}
-AI=re.compile(r'AI|人工智能|大模型|模型|智能体|Agent|GPT|OpenAI|DeepSeek|Claude|Gemini|LLM|文心|通义|豆包|混元|智谱|Kimi|月之暗面|机器人|算力|英伟达|NVIDIA|芯片|Sora|AIGC|生成式|千问|Qwen|Llama|xAI|Grok|具身',re.I)
-def get(u):return urllib.request.urlopen(urllib.request.Request(u,headers=UA),timeout=20).read()
-def rss(src,u):
+"""抓取中文热榜（各平台），输出 data/cn.json。由 GitHub Actions 每15分钟运行。数据均为真实抓取，失败的平台标记 ok=false。"""
+import json,re,time,urllib.request,email.utils,os,html
+UA={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36','Accept-Language':'zh-CN,zh;q=0.9'}
+AI=re.compile(r'AI|人工智能|大模型|模型|智能体|Agent|GPT|OpenAI|DeepSeek|Claude|Gemini|LLM|文心|通义|豆包|混元|智谱|Kimi|月之暗面|机器人|算力|英伟达|NVIDIA|芯片|Sora|AIGC|生成式|千问|Qwen|Llama|xAI|Grok|具身|Copilot|Cursor|Codex|MCP|神经网络|机器学习|深度学习|自动驾驶|智驾|昇腾|元宝|可灵|即梦|大语言',re.I)
+def get(u,data=None,h=None):
+    return urllib.request.urlopen(urllib.request.Request(u,data=data,headers={**UA,**(h or {})}),timeout=20).read()
+J=lambda *a,**k:json.loads(get(*a,**k))
+def num(v):
+    try:return int(float(v))
+    except Exception:return 0
+def rss(u):
     x=get(u).decode('utf-8','ignore');out=[]
     def g(tag,b):
         m=re.search('<'+tag+'[^>]*>(.*?)</'+tag+'>',b,re.S)
-        return re.sub(r'<!\[CDATA\[|\]\]>','',m.group(1)).strip() if m else ''
+        return html.unescape(re.sub(r'<!\[CDATA\[|\]\]>','',m.group(1)).strip()) if m else ''
     for b in re.findall(r'<item>(.*?)</item>',x,re.S):
-        t,l,d=g('title',b),g('link',b),g('pubDate',b)
-        try: ts=email.utils.parsedate_to_datetime(d).timestamp()*1000
-        except Exception: ts=time.time()*1000
-        out.append(dict(id=src+l[-40:],title=t,url=l,src=src,t=ts,heat=0))
+        try:ts=int(email.utils.parsedate_to_datetime(g('pubDate',b)).timestamp()*1000)
+        except Exception:ts=None
+        out.append(dict(title=g('title',b),url=g('link',b),heat=0,t=ts))
     return out
+def baidu():
+    c=J('https://top.baidu.com/api/board?platform=wise&tab=realtime')['data']['cards'][0]['content'][0]['content']
+    return [dict(title=x['word'],url=x['url'],heat=num(x.get('hotScore'))) for x in c]
+def toutiao():
+    return [dict(title=x['Title'],url=x['Url'].split('?')[0],heat=num(x.get('HotValue'))) for x in J('https://www.toutiao.com/hot-event/hot-board/?origin=toutiao_pc')['data']]
+def zhihu():
+    out=[]
+    for x in J('https://api.zhihu.com/topstory/hot-list?limit=50')['data']:
+        t=x['target'];m=re.search(r'([\d.]+)\s*万',x.get('detail_text',''))
+        out.append(dict(title=t['title'],url='https://www.zhihu.com/question/%s'%t['id'],heat=int(float(m.group(1))*1e4) if m else 0))
+    return out
+def bili():
+    return [dict(title=x['title'],url='https://www.bilibili.com/video/'+x['bvid'],heat=x['stat']['view']) for x in J('https://api.bilibili.com/x/web-interface/popular?ps=50')['data']['list']]
+def kr36():
+    d=J('https://gateway.36kr.com/api/mis/nav/home/nav/rank/hot',b'{"partner_id":"wap","param":{"siteId":1,"platformId":2}}',{'Content-Type':'application/json'})
+    return [dict(title=x['templateMaterial']['widgetTitle'],url='https://36kr.com/p/%s'%x['itemId'],heat=x['templateMaterial'].get('statRead',0)) for x in d['data']['hotRankList']]
+def juejin():
+    return [dict(title=x['content']['title'],url='https://juejin.cn/post/'+x['content']['content_id'],heat=x['content_counter'].get('hot_rank',0)) for x in J('https://api.juejin.cn/content_api/v1/content/article_rank?category_id=6809637773935378440&type=hot')['data']]
+def csdn():
+    return [dict(title=x['articleTitle'],url=x['articleDetailUrl'],heat=num(x.get('hotRankScore'))) for x in J('https://blog.csdn.net/phoenix/web/blog/hot-rank?page=0&pageSize=50')['data']]
 def v2ex():
-    return [dict(id='v2'+str(x['id']),title=x['title'],url=x['url'],src='V2EX',t=x['created']*1000,heat=x['replies']*3) for p in ('hot','latest') for x in json.loads(get(f'https://www.v2ex.com/api/topics/{p}.json'))]
-items,status=[],{}
-seen=set()
-for name,f in [('IT之家',lambda:rss('IT之家','https://www.ithome.com/rss/')),('cnBeta',lambda:rss('cnBeta','https://www.cnbeta.com.tw/backend.php')),('爱范儿',lambda:rss('爱范儿','https://www.ifanr.com/feed')),('极客公园',lambda:rss('极客公园','https://www.geekpark.net/rss')),('开源中国',lambda:rss('开源中国','https://www.oschina.net/news/rss')),('少数派',lambda:rss('少数派','https://sspai.com/feed')),('V2EX',v2ex)]:
+    return [dict(title=x['title'],url=x['url'],heat=x['replies'],t=x['created']*1000) for p in ('hot','latest') for x in J(f'https://www.v2ex.com/api/topics/{p}.json')]
+P=[('baidu','百度热搜','综合',baidu,'#2f6bff'),('toutiao','今日头条','综合',toutiao,'#f04142'),('zhihu','知乎热榜','综合',zhihu,'#0a66ff'),('bilibili','哔哩哔哩','综合',bili,'#fb7299'),
+   ('36kr','36氪','科技',kr36,'#3c7dff'),('ithome','IT之家','科技',lambda:rss('https://www.ithome.com/rss/'),'#d22222'),('cnbeta','cnBeta','科技',lambda:rss('https://www.cnbeta.com.tw/backend.php'),'#2a63b4'),
+   ('geekpark','极客公园','科技',lambda:rss('https://www.geekpark.net/rss'),'#1aa3ff'),('ifanr','爱范儿','科技',lambda:rss('https://www.ifanr.com/feed'),'#e21f26'),('sspai','少数派','科技',lambda:rss('https://sspai.com/feed'),'#da282a'),
+   ('juejin','掘金·人工智能','开发者',juejin,'#1e80ff'),('csdn','CSDN热榜','开发者',csdn,'#fc5531'),('oschina','开源中国','开发者',lambda:rss('https://www.oschina.net/news/rss'),'#2fb35a'),('v2ex','V2EX','开发者',v2ex,'#999999')]
+out=[];now=int(time.time()*1000)
+for pid,name,cat,f,color in P:
     try:
-        r=[x for x in f() if AI.search(x['title']) and x['id'] not in seen and not seen.add(x['id'])];items+=r;status[name]=len(r)
-    except Exception as e:status[name]='ERR '+str(e)[:60]
+        seen=set();items=[]
+        for x in f():
+            x['title']=(x['title'] or '').strip()
+            if not x['title'] or x['title'] in seen:continue
+            seen.add(x['title']);x['ai']=bool(AI.search(x['title']));items.append(x)
+        items=items[:60];out.append(dict(id=pid,name=name,cat=cat,color=color,ok=True,items=items,updated=now))
+        print(f'{name}: {len(items)} 条, AI {sum(i["ai"] for i in items)}')
+    except Exception as e:
+        out.append(dict(id=pid,name=name,cat=cat,color=color,ok=False,err=str(e)[:100],items=[],updated=now));print(f'{name}: ERR {e}')
 os.makedirs('data',exist_ok=True)
-json.dump(dict(updated=int(time.time()*1000),status=status,items=items),open('data/cn.json','w'),ensure_ascii=False)
-print(status)
+json.dump(dict(updated=now,platforms=out),open('data/cn.json','w'),ensure_ascii=False)
