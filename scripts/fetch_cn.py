@@ -57,8 +57,8 @@ for pid,name,cat,f,color in P:
             x['title']=(x['title'] or '').strip()
             if not x['title'] or x['title'] in seen:continue
             seen.add(x['title']);x['ai']=bool(AI.search(x['title']));items.append(x)
-        items=items[:60];out.append(dict(id=pid,name=name,cat=cat,color=color,ok=True,items=items,updated=now))
-        print(f'{name}: {len(items)} 条, AI {sum(i["ai"] for i in items)}');break
+        items=[{k:v for k,v in dict(title=i['title'],url=i['url'],heat=i.get('heat') or None,t=i.get('t') if not i.get('heat') else None,ai=1 if i['ai'] else None).items() if v is not None} for i in items[:30]];out.append(dict(id=pid,name=name,cat=cat,color=color,ok=True,items=items,updated=now))
+        print(f'{name}: {len(items)} 条, AI {sum(1 for i in items if i.get("ai"))}');break
        except Exception:
         if attempt==2:raise
         time.sleep(3)
@@ -68,4 +68,4 @@ for pid,name,cat,f,color in P:
       else:
         out.append(dict(id=pid,name=name,cat=cat,color=color,ok=False,err=str(e)[:100],items=[],updated=now));print(f'{name}: ERR {e}')
 os.makedirs('data',exist_ok=True)
-json.dump(dict(updated=now,platforms=out),open('data/cn.json','w'),ensure_ascii=False)
+json.dump(dict(updated=now,platforms=out),open('data/cn.json','w'),ensure_ascii=False,separators=(',',':'))
