@@ -9,7 +9,9 @@ const fmt=n=>!n?'':n>=1e8?(n/1e8).toFixed(1)+'亿':n>=1e4?(n/1e4).toFixed(1)+'�
 const ago=t=>{const s=(Date.now()-t)/1000;return s<60?'刚刚':s<3600?(s/60|0)+'分钟前':s<86400?(s/3600|0)+'小时前':(s/86400|0)+'天前';};
 const allItems=()=>data.platforms.flatMap(p=>p.items.map((x,i)=>({...x,rank:i+1,pid:p.id,pname:p.name})));
 const hitKw=t=>kws.filter(k=>t.toLowerCase().includes(k.toLowerCase()));
-async function load(){log('同步中… 拉取 data/cn.json');try{const r=await fetch('data/cn.json?_='+Date.now());if(!r.ok)throw r.status;data=await r.json();}catch(e){log('[ERR] 数据拉取失败: '+e,'e');return;}
+async function load(){log('同步中… 拉取 data/cn.json');const get=(u,ms)=>Promise.race([fetch(u).then(r=>{if(!r.ok)throw r.status;return r.json()}),new Promise((_,j)=>setTimeout(()=>j('超时'),ms))]);
+ const rs=await Promise.allSettled([get('data/cn.json?_='+Date.now(),15000),get('https://fastly.jsdelivr.net/gh/zeta-bat-2030/ai-radar@main/data/cn.json',8000),get('https://cdn.jsdelivr.net/gh/zeta-bat-2030/ai-radar@main/data/cn.json',8000)]);
+ const ok=rs.filter(r=>r.status==='fulfilled').map(r=>r.value).sort((a,b)=>b.updated-a.updated);if(!ok.length){log('[ERR] 数据拉取失败','e');return;}data=ok[0];
  data.platforms.forEach(p=>log(p.ok?`[OK] ${p.name} ← ${p.items.length} 条 · AI ${p.items.filter(x=>x.ai).length}`:`[ERR] ${p.name}: ${p.err}`,p.ok?'':'e'));
  $('cnUpd').textContent=new Date(data.updated).toLocaleString('zh-CN',{hour12:false})+`（${ago(data.updated)}）`;
  detect();render();charts();ticker();cd=REFRESH;log(`同步完成 · ${data.platforms.filter(p=>p.ok).length} 个平台在线 · 预警 ${alerts.length}`,'w');}
